@@ -4,8 +4,11 @@ install.packages("tidyr")
 install.packages("tibble")
 install.packages("stringr")
 install.packages("dplyr")
+install.packages("rstatix")
 library("stringr")
 library("dplyr")
+library("tidyr")
+library("rstatix")
 
 
 Tible_1 <- read.csv("data_AE_Anastasiia_and_Natalia.csv")
@@ -14,11 +17,12 @@ clinical_data <- read.delim("E-MTAB-3732.sdrf.txt")
 #Таблица с экспрессией без Настиного гена
 expression <- Tible_1[ -c(6,7,8,63), ]
 
-
 #Таблица по нормальным образцам
 clinical_data1 <- clinical_data[!clinical_data$Characteristics.organism.part. != 	
                                   'pancreas', ]
 normal <- clinical_data1[!clinical_data1$Characteristics.disease. != 'normal', ]
+
+#из таблицы нормы мы достаем номера семплов как вектор, отдельно семпл норма
 
 samples_normal <- select(normal, 1) %>%
   unlist()
@@ -29,7 +33,61 @@ samples_normal <- as.numeric(str_extract(samples_normal, "(\\d)+"))
 cancer1 <- clinical_data1 %>% filter(Characteristics.disease. %in% c('pancreatic cancer', 'pancreatic adenocarcinoma', 
                                                                      'pancreatic ductal adenocarcinoma', 'pancreatic carcinoma'))
 
+#из таблицы рака мы достаем номера семплов как вектор, отдельно семплы рак
 
-#из рака и из нормы мы достаем номера семплов как вектор, отдельно семплы рак и отдельно семпл норма
-#затем фильтруем экспресию по векторам, в результате две таблички с экспрессией только по нужным семплам
+samples_cancer1 <- select(cancer1, 1) %>%
+  unlist()
+
+samples_cancer1 <- as.numeric(str_extract(samples_cancer1, "(\\d)+"))
+
+#перевернем таблицу экспрессии чтобы было удобнее с ней работать 
+
+expr_updated <- expression %>%
+  select(-1) %>%
+  pivot_longer(starts_with("Sample"), names_to = "Samples", values_to = "Expression") 
+
+#найдем медиану экспрессии по поворяющимся генам по всем семплам
+
+new_results <- expr_updated %>%
+  group_by(HGNC.symbol, Samples) %>%
+  summarise(Expression = median(Expression, na.rm = T)) %>%
+  pivot_wider(names_from = HGNC.symbol, values_from = Expression)
+
+#убираем из столбца семлов слово семпл, чтобы отфильтровать по нашим векторам
+
+new_results_num_samples <- new_results %>%
+  mutate(Samples = str_remove(Samples, "Sample.")) %>%
+  mutate(Samples = as.numeric(Samples))
+
+#затем фильтруем экспресию по векторам, в результате две таблички (экспр по опухол и норм) с экспрессией только по нужным семплам
+
+expr_normal <- new_results_num_samples %>% filter(Samples %in% samples_normal) #таблица с нормальной экспрессией
+
+expr_cancer <- new_results_num_samples %>% filter(Samples %in% samples_cancer1) #таблица с опухолевой экспрессией
+
+#удаляем первый столбик с номерами семплов в обеих таблицах
+
+expr_normal_no_sampl <- expr_normal %>% select(-1)
+
+expr_cancer_no_sampl <- expr_cancer %>% select(-1)
+
+#Подсчет корреляции между всеми генами по двум выборкам отдельно - должны получится 2 корреляционные матрицы (пакет rstatix, cor_mat, Корреляция Спирмана)
+
+cor_normal <- expr_normal_no_sampl %>% cor_mat(method = "spearman")
+
+cor_cancer <- expr_cancer_no_sampl %>% cor_mat(method = "spearman")
+
+#Построить 2 коррелограммы по двум выборкам
+
+cor_normal %>% cor_reorder() %>% pull_lower_triangle() %>% cor_plot()
+
+cor_cancer %>% cor_reorder() %>% pull_lower_triangle() %>% cor_plot()
+
+#Сделать 2 таблицы с информацией о корреляции по парам генов (пакет rstatix, cor_test, Корреляция Спирмана) 
+
+cor_normal_all <-  expr_normal_no_sampl %>% cor_test(method = "spearman")
+
+cor_cancer_all <-  expr_cancer_no_sampl %>% cor_test(method = "spearman")
+
+#отобрать только значимые корреляции
 

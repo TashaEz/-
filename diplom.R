@@ -5,10 +5,17 @@ install.packages("tibble")
 install.packages("stringr")
 install.packages("dplyr")
 install.packages("rstatix")
+install.packages("tidygraph")
+install.packages("ggraph")
+install.packages("ggplot2")
 library("stringr")
 library("dplyr")
 library("tidyr")
 library("rstatix")
+library("tidygraph")
+library("ggraph")
+library("ggplot2")
+
 
 
 Tible_1 <- read.csv("data_AE_Anastasiia_and_Natalia.csv")
@@ -77,7 +84,7 @@ cor_normal <- expr_normal_no_sampl %>% cor_mat(method = "spearman")
 
 cor_cancer <- expr_cancer_no_sampl %>% cor_mat(method = "spearman")
 
-#Построить 2 коррелограммы по двум выборкам
+#Построить 2 коррелограммы по двум выборкам (поменять цвет)
 
 cor_normal %>% cor_reorder() %>% pull_lower_triangle() %>% cor_plot()
 
@@ -89,5 +96,29 @@ cor_normal_all <-  expr_normal_no_sampl %>% cor_test(method = "spearman")
 
 cor_cancer_all <-  expr_cancer_no_sampl %>% cor_test(method = "spearman")
 
-#отобрать только значимые корреляции
+#отобрать только значимые корреляции p < 0,05
+
+cor_normal_all_1 <- filter(cor_normal_all, p < 0.05)
+
+cor_cancer_all_1 <- filter(cor_cancer_all, p < 0.05)
+
+#убрать р, метод и статитику
+
+cor_normal_all_2 <- cor_normal_all_1  %>% select(-4 & -5 & -6)
+
+cor_cancer_all_2 <- cor_cancer_all_1 %>% select(-4 & -5 & -6)
+
+#строим сеть и визулизируем
+
+normal.graph <- as_tbl_graph(cor_normal_all_2, directed = FALSE)
+
+network_normal <- ggraph(normal.graph) + 
+  geom_edge_link(aes(color = cor, width = cor)) + 
+  geom_node_point(size = 6) +
+  geom_node_text(aes(label = name), size = 6, repel = TRUE) +
+  theme_graph() +
+  scale_edge_color_gradient2(low = "blue", high = "red", mid = "white")
+
+ggsave(filename = "normal", 
+       plot = network_normal, scale = 1.8)
 

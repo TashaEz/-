@@ -119,6 +119,19 @@ network_normal <- ggraph(normal.graph) +
   theme_graph() +
   scale_edge_color_gradient2(low = "blue", high = "red", mid = "white")
 
-ggsave(filename = "normal", 
+ggsave(filename = "normal.png", 
+       plot = network_normal, scale = 1.8)
+
+
+cancer.graph <- as_tbl_graph(cor_cancer_all_2, directed = FALSE)
+
+network_cancer <- ggraph(cancer.graph) + 
+  geom_edge_link(aes(color = cor, width = cor)) + 
+  geom_node_point(size = 6) +
+  geom_node_text(aes(label = name), size = 6, repel = TRUE) +
+  theme_graph() +
+  scale_edge_color_gradient2(low = "blue", high = "red", mid = "white")
+
+ggsave(filename = "cancer.png", 
        plot = network_normal, scale = 1.8)
 

@@ -133,5 +133,80 @@ network_cancer <- ggraph(cancer.graph) +
   scale_edge_color_gradient2(low = "blue", high = "red", mid = "white")
 
 ggsave(filename = "cancer.png", 
-       plot = network_normal, scale = 1.8)
+       plot = network_cancer, scale = 1.8)
+
+
+#--------------------------------Анализ сетей ко-экспрессии--------------------------
+
+# по норме
+
+normal.graph <- normal.graph %>% activate(edges) %>% mutate (cor_abs = abs(cor))
+
+normal.graph <- normal.graph %>% activate(nodes) %>%
+  mutate(hub=centrality_hub(weights = cor_abs, scale = TRUE, options = igraph::arpack_defaults)) %>%
+  mutate (betweenness = centrality_betweenness(
+    weights = cor_abs ,
+    directed = TRUE,
+    cutoff = NULL,
+    normalized = FALSE
+  ))  %>% mutate (group = group_edge_betweenness(weights = cor_abs, directed = TRUE, n_groups = NULL)) 
+
+hub_and_between_normal <- normal.graph %>% activate(nodes) %>% as_tibble()
+
+# по раку
+
+cancer.graph <- cancer.graph %>% activate(edges) %>% mutate (cor_abs = abs(cor))
+
+cancer.graph <- cancer.graph %>% activate(nodes) %>%
+  mutate(hub=centrality_hub(weights = cor_abs, scale = TRUE, options = igraph::arpack_defaults)) %>%
+  mutate (betweenness = centrality_betweenness(
+    weights = cor_abs ,
+    directed = TRUE,
+    cutoff = NULL,
+    normalized = FALSE
+  ))  %>% mutate (group = group_edge_betweenness(weights = cor_abs, directed = TRUE, n_groups = NULL)) 
+
+hub_and_between_cancer <- cancer.graph %>% activate(nodes) %>% as_tibble()
+
+#отбираем верхние 5%
+#норма
+per95_hub_normal = quantile(hub_and_between_normal$hub, 0.95)
+per95_between_normal = quantile(hub_and_between_normal$betweenness, 0.95)
+
+table_hub_normal <- filter(hub_and_between_normal, hub >= 0.962361)
+table_between_normal <- filter(hub_and_between_normal, betweenness >= 44.575)
+table_hubandbetween_normal <- full_join(table_hub_normal, table_between_normal)
+
+#рак
+per95_hub_cancer = quantile(hub_and_between_cancer$hub, 0.95)
+per95_between_cancer = quantile(hub_and_between_cancer$betweenness, 0.95)
+
+table_hub_cancer <- filter(hub_and_between_cancer, hub >= 0.9922763)
+table_between_cancer <- filter(hub_and_between_cancer, betweenness >= 45.48405)
+table_hubandbetween_cancer <- full_join(table_hub_cancer, table_between_cancer)
+
+#визуализация сетей
+#норма
+ko_network_n <- ggraph(normal.graph) +
+  geom_edge_link(aes(color = cor, width = cor))  +
+  geom_node_point(aes(size = hub))  +
+  geom_node_text(aes(label = name, size = betweenness, color = group), repel = TRUE)  +
+  theme_graph() +
+  scale_edge_color_gradient2(low = "blue", high = "red", mid = "white")
+
+ggsave(filename = "normal2.png", 
+       plot = ko_network_n, scale = 10)
+#рак
+ko_network_c <- ggraph(cancer.graph) +
+  geom_edge_link(aes(color = cor, width = cor))  +
+  geom_node_point(aes(size = hub))  +
+  geom_node_text(aes(label = name, size = betweenness, color = group), repel = TRUE)  +
+  theme_graph() +
+  scale_edge_color_gradient2(low = "blue", high = "red", mid = "white")
+
+ggsave(filename = "cancer2.png", 
+       plot = ko_network_c, scale = 10)
+
+
+
 

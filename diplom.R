@@ -8,6 +8,11 @@ install.packages("rstatix")
 install.packages("tidygraph")
 install.packages("ggraph")
 install.packages("ggplot2")
+install.packages("tidyverse")
+install.packages("cluster")
+install.packages("factoextra")
+install.packages("dendextend")
+install.packages("tibble")
 library("stringr")
 library("dplyr")
 library("tidyr")
@@ -15,8 +20,11 @@ library("rstatix")
 library("tidygraph")
 library("ggraph")
 library("ggplot2")
-
-
+library("tidyverse")  # data manipulation
+library("cluster")    # clustering algorithms
+library("factoextra") # clustering visualization
+library("dendextend") # for comparing two dendrograms
+library("tibble")
 
 Tible_1 <- read.csv("data_AE_Anastasiia_and_Natalia.csv")
 clinical_data <- read.delim("E-MTAB-3732.sdrf.txt")
@@ -146,10 +154,10 @@ normal.graph <- normal.graph %>% activate(nodes) %>%
   mutate(hub=centrality_hub(weights = cor_abs, scale = TRUE, options = igraph::arpack_defaults)) %>%
   mutate (betweenness = centrality_betweenness(
     weights = cor_abs ,
-    directed = TRUE,
+    directed = FALSE,
     cutoff = NULL,
     normalized = FALSE
-  ))  %>% mutate (group = group_edge_betweenness(weights = cor_abs, directed = TRUE, n_groups = NULL)) 
+  ))  %>% mutate (group = group_edge_betweenness(weights = cor_abs, directed = FALSE, n_groups = NULL)) 
 
 hub_and_between_normal <- normal.graph %>% activate(nodes) %>% as_tibble()
 
@@ -161,10 +169,10 @@ cancer.graph <- cancer.graph %>% activate(nodes) %>%
   mutate(hub=centrality_hub(weights = cor_abs, scale = TRUE, options = igraph::arpack_defaults)) %>%
   mutate (betweenness = centrality_betweenness(
     weights = cor_abs ,
-    directed = TRUE,
+    directed = FALSE,
     cutoff = NULL,
     normalized = FALSE
-  ))  %>% mutate (group = group_edge_betweenness(weights = cor_abs, directed = TRUE, n_groups = NULL)) 
+  ))  %>% mutate (group = group_edge_betweenness(weights = cor_abs, directed = FALSE, n_groups = NULL)) 
 
 hub_and_between_cancer <- cancer.graph %>% activate(nodes) %>% as_tibble()
 
@@ -189,24 +197,41 @@ table_hubandbetween_cancer <- full_join(table_hub_cancer, table_between_cancer)
 #норма
 ko_network_n <- ggraph(normal.graph) +
   geom_edge_link(aes(color = cor, width = cor))  +
-  geom_node_point(aes(size = hub))  +
-  geom_node_text(aes(label = name, size = betweenness, color = group), repel = TRUE)  +
+                   scale_edge_width(range=c(1,3)) +
+  geom_node_point(aes(size =  log(hub)))  +
+  geom_node_text(aes(label=ifelse(group == 1, name, NA), size = betweenness*10), repel = TRUE) +
   theme_graph() +
   scale_edge_color_gradient2(low = "blue", high = "red", mid = "white")
 
 ggsave(filename = "normal2.png", 
-       plot = ko_network_n, scale = 10)
+       plot = ko_network_n, scale = 2)
 #рак
 ko_network_c <- ggraph(cancer.graph) +
   geom_edge_link(aes(color = cor, width = cor))  +
-  geom_node_point(aes(size = hub))  +
-  geom_node_text(aes(label = name, size = betweenness, color = group), repel = TRUE)  +
+  scale_edge_width(range=c(1,3)) +
+  geom_node_point(aes(size =  log(hub)))  +
+  geom_node_text(aes(label=ifelse(group == 1, name, NA), size = betweenness*10), repel = TRUE) +
   theme_graph() +
   scale_edge_color_gradient2(low = "blue", high = "red", mid = "white")
 
 ggsave(filename = "cancer2.png", 
-       plot = ko_network_c, scale = 10)
+       plot = ko_network_c, scale = 2)
 
+# Построение дендрограмм
 
+cor_normal_1 <- column_to_rownames(cor_normal, var = "rowname") #перевод первого столбца в названия строк, для отображения генов на дендрограмме
+cor_cancer_1 <- column_to_rownames(cor_cancer, var = "rowname")
+
+d_normal <- dist(cor_normal_1, method = "euclidean")
+hc1_normal <- hclust(d_normal, method = "complete" )
+plot(hc1_normal, cex = 0.6, hang = -1)
+
+d_cancer <- dist(cor_cancer_1, method = "euclidean")
+hc1_cancer <- hclust(d_cancer, method = "complete" )
+plot(hc1_cancer, cex = 0.6, hang = -1)
+
+tanglegram(hc1_normal, hc1_cancer) #объединили дендограммы
+
+cor_cophenetic(hc1_normal, hc1_cancer) #сравнили дендрограммы 0.1492133
 
 

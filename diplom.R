@@ -230,8 +230,63 @@ d_cancer <- dist(cor_cancer_1, method = "euclidean")
 hc1_cancer <- hclust(d_cancer, method = "complete" )
 plot(hc1_cancer, cex = 0.6, hang = -1)
 
-tanglegram(hc1_normal, hc1_cancer) #объединили дендограммы
+denrogramma <- tanglegram(hc1_normal, hc1_cancer) #объединили дендограммы
+
+png("дендр.png", width = 12, height = 15, res = 300, units = "cm")
+plot(tanglegram ( hc1_normal, hc1_cancer, lab.cex = 0.7))
+dev.off()
 
 cor_cophenetic(hc1_normal, hc1_cancer) #сравнили дендрограммы 0.1492133
 
+# Установка пакета BiocManager
+if (!require("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
 
+# Установка пакетов для анализа
+BiocManager::install("org.Hs.eg.db")
+BiocManager::install("enrichplot")
+BiocManager::install("clusterProfiler")
+BiocManager::install("DOSE")
+BiocManager::install("biomaRt")
+
+library(ggplot2)
+library(stringr)
+library(readr)
+
+library(enrichplot)
+library(org.Hs.eg.db)
+library(clusterProfiler)
+library(DOSE)
+library(biomaRt)
+
+# Здесь должен быть список ваших генов
+x <- c(str_split("BRCA1, BRCA2, ATM, ATR, CDK12, CHEK1, CHEK2, EMC2, FANCA, BAP1, BARD1, 
+                 BRIP1, AKT1, CTNNB1, ERCC4, ABRAXAS1, FANCD2, FANCE, FANCI, FANCL, KRAS, 
+                 MLH1, MRE11, MSH2, MSH6, MUTYH, NBN, PALB2, RAD50, RAD51, RAD51B, RAD51C, 
+                 RAD51D, RAD52, RAD54B, RAD54L, PARP1, TP53, TP53BP1, XRCC2, XRCC3, PIK3CA, 
+                 PPP2R2A, PTEN", ", ", simplify = T))
+
+mart=useMart("ensembl")
+ensembl=useDataset("hsapiens_gene_ensembl",mart = useMart("ensembl"))
+
+# Нахождение entrezgene_id по списку генов
+ids <- unique(getBM(attributes = c("hgnc_symbol", "entrezgene_id"),    
+                    filters = "hgnc_symbol",
+                    values = x,
+                    mart = ensembl))
+
+# Две части скрипта по базе KEGG и GO
+# По каждой части будут сохранены таблица и график
+# Функция enrichKEGG() может не сработать, а enrichGO() точно должна
+
+edo1 <- enrichKEGG(ids$entrezgene_id, keyType = "kegg", pvalueCutoff = 0.05)
+plot1 <- cnetplot(edo1, circular = T, color.params = list(edge = 0.05))
+edo_result1 <- edo1@result
+write_csv2(edo_result1, "KEGG_result.csv")
+ggsave(plot = plot1, filename = "go_concept_plot_KEGG.png", dpi = 600, scale = 2)
+
+edo2 <- enrichGO(ids$entrezgene_id, 'org.Hs.eg.db', keyType = "ENTREZID", pvalueCutoff = 0.05, readable=T)
+plot2 <- cnetplot(edo2, circular = T, colorEdge = T)
+edo_result2 <- edo2@result
+write_csv2(edo_result2, "GO_result.csv")
+ggsave(plot = plot2, filename = "go_concept_plot_GO.png", dpi = 600, scale = 2)
